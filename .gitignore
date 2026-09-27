@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# DuckDB database files and temporary scratch directories
+*.duckdb
+*.duckdb.wal
+duckdb_tmp/
+**/duckdb_tmp/
+.tmp/
+**/.tmp/
+
+# Competition Datasets (large files > 100MB)
+dataset/
+**/dataset/*
+!**/dataset/.gitkeep
+
+# Pipeline Outputs (large submission TSVs > 90MB - 300MB)
+output/
+**/output/*
+!**/output/.gitkeep
+test_out.tsv
+
+# Logs
+*.log
+**/*.log
+
+# OS & IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
