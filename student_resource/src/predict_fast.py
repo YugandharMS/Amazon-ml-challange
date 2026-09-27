@@ -46,25 +46,31 @@ ROOT = Path(__file__).resolve().parents[1]
 DATASET = ROOT / "dataset"
 OUTPUT = ROOT / "output"
 
-LEGAL_REGEX = (
-    "(^| )(the|private|pvt|limited|ltd|incorporated|inc|corporation|corp|company|co|"
-    "llc|llp|plc|services|holdings|enterprises|group|solutions|industries|"
-    "associates|partners|management|international|intl|"
-    "sarl|sas|sasu|eurl|snc|sci|gie|ei|ste|societe|"
-    "mr|mrs|ms|dr|shri|smt|shree|"
-    "praiveta|limiteda|praivet|limited|praibheta|limatida|praivarr|limirrad|pra|li|"
-    "association|club|ecole|comite|fils|france)( |$)"
-)
+LEGAL_TERMS = [
+    'the', 'private', 'pvt', 'limited', 'ltd', 'incorporated', 'inc', 'corporation', 'corp', 'company', 'co',
+    'llc', 'llp', 'plc', 'service', 'services', 'holding', 'holdings', 'enterprise', 'enterprises',
+    'group', 'groups', 'solution', 'solutions', 'industry', 'industries',
+    'associate', 'associates', 'partner', 'partners', 'management', 'international', 'intl',
+    'center', 'centre', 'station', 'foundation', 'agency', 'system', 'systems', 'analytics',
+    'sarl', 'sas', 'sasu', 'eurl', 'snc', 'sci', 'gie', 'ei', 'ste', 'societe',
+    'mr', 'mrs', 'ms', 'dr', 'shri', 'smt', 'shree',
+    'praiveta', 'limiteda', 'praivet', 'praibheta', 'limatida', 'praivarr', 'limirrad', 'pra', 'li',
+    'vildarsa', 'salyushamsa', 'prriraet', 'ltdh', 'cntrh',
+    'association', 'club', 'ecole', 'comite', 'fils', 'france', 'ets', 'amicale', 'ligue'
+]
+LEGAL_REGEX = r'\b(' + '|'.join(LEGAL_TERMS) + r')\b'
 
-ADDR_STOP_REGEX = (
-    "(^| )(road|rd|street|st|avenue|ave|drive|dr|court|ct|"
-    "lane|ln|boulevard|blvd|highway|hwy|parkway|pkwy|"
-    "way|circle|cir|place|pl|suite|ste|unit|floor|fl|"
-    "building|bldg|near|opp|opposite|behind|post|po|box|"
-    "plot|door|hno|house|no|sr|null|nan|none|and|the|of|in|at|"
-    "nagar|colony|bazar|market|complex|taluk|village|district|dist|gali|pur|puram|"
-    "rue|chemin|impasse|allee|quai|cours|bis|ter|du|des|de|la|le|les|d|l|zone|za|zi|parc|cedex|bp)( |$)"
-)
+ADDR_STOP_TERMS = [
+    'road', 'rd', 'street', 'st', 'avenue', 'ave', 'drive', 'dr', 'court', 'ct',
+    'lane', 'ln', 'boulevard', 'blvd', 'highway', 'hwy', 'parkway', 'pkwy',
+    'way', 'circle', 'cir', 'place', 'pl', 'suite', 'ste', 'unit', 'floor', 'fl',
+    'building', 'bldg', 'near', 'opp', 'opposite', 'behind', 'post', 'po', 'box',
+    'plot', 'door', 'hno', 'house', 'no', 'sr', 'null', 'nan', 'none', 'and', 'the', 'of', 'in', 'at',
+    'nagar', 'colony', 'bazar', 'market', 'complex', 'taluk', 'village', 'district', 'dist', 'gali', 'pur', 'puram',
+    'rue', 'r', 'chemin', 'impasse', 'imp', 'allee', 'all', 'quai', 'cours', 'bis', 'ter', 'du', 'des', 'de', 'la', 'le', 'les', 'd', 'l',
+    'av', 'bd', 'rte', 'route', 'zone', 'za', 'zi', 'parc', 'cedex', 'bp'
+]
+ADDR_STOP_REGEX = r'\b(' + '|'.join(ADDR_STOP_TERMS) + r')\b'
 
 FEATURE_COLS = [
     # Exact match signals
@@ -81,7 +87,7 @@ FEATURE_COLS = [
     "name_len_ratio", "core_containment", "addr_len_ratio",
     # Address exact
     "exact_sorted_addr",
-    # New v7 features
+    # New v7/v8 features
     "core_num_words", "has_addr_both", "first_token_match", "name_starts_same",
 ]
 
@@ -94,31 +100,41 @@ def transliterate_series(series):
     out = []
     for text in series:
         if not text or pd.isna(text):
-            out.append("")
+            out.append('')
             continue
         text = str(text)
         has_indic = False
-        sc = sanscript.DEVANAGARI
-        for ch in text:
-            c = ord(ch)
-            if 0x0900 <= c <= 0x0D7F:
+        for char in text:
+            cp = ord(char)
+            if (0x0900 <= cp <= 0x0D7F):
                 has_indic = True
-                if 0x0900 <= c <= 0x097F: sc = sanscript.DEVANAGARI; break
-                elif 0x0980 <= c <= 0x09FF: sc = sanscript.BENGALI; break
-                elif 0x0A00 <= c <= 0x0A7F: sc = sanscript.GURMUKHI; break
-                elif 0x0A80 <= c <= 0x0AFF: sc = sanscript.GUJARATI; break
-                elif 0x0B00 <= c <= 0x0B7F: sc = sanscript.ORIYA; break
-                elif 0x0B80 <= c <= 0x0BFF: sc = sanscript.TAMIL; break
-                elif 0x0C00 <= c <= 0x0C7F: sc = sanscript.TELUGU; break
-                elif 0x0C80 <= c <= 0x0CFF: sc = sanscript.KANNADA; break
-                elif 0x0D00 <= c <= 0x0D7F: sc = sanscript.MALAYALAM; break
-        if has_indic:
-            try:
-                out.append(transliterate(text, sc, sanscript.ITRANS).lower())
-            except:
-                out.append(text.lower())
-        else:
-            out.append(text.lower())
+                break
+        if not has_indic:
+            out.append(text)
+            continue
+        cur = []
+        for word in text.split():
+            script = None
+            for ch in word:
+                cp = ord(ch)
+                if 0x0900 <= cp <= 0x097F: script = sanscript.DEVANAGARI; break
+                elif 0x0B80 <= cp <= 0x0BFF: script = sanscript.TAMIL; break
+                elif 0x0C00 <= cp <= 0x0C7F: script = sanscript.TELUGU; break
+                elif 0x0C80 <= cp <= 0x0CFF: script = sanscript.KANNADA; break
+                elif 0x0D00 <= cp <= 0x0D7F: script = sanscript.MALAYALAM; break
+                elif 0x0980 <= cp <= 0x09FF: script = sanscript.BENGALI; break
+                elif 0x0A80 <= cp <= 0x0AFF: script = sanscript.GUJARATI; break
+                elif 0x0A00 <= cp <= 0x0A7F: script = sanscript.GURMUKHI; break
+                elif 0x0B00 <= cp <= 0x0B7F: script = sanscript.ORIYA; break
+            if script:
+                try:
+                    lat = transliterate(word, script, sanscript.ITRANS)
+                    cur.append(lat.lower())
+                except Exception:
+                    cur.append(word)
+            else:
+                cur.append(word)
+        out.append(' '.join(cur))
     return out
 
 
@@ -153,11 +169,21 @@ def normalize_table(con, out_table, source, country=None, do_translit=False):
             SELECT *,
                 strip_accents(lower(trim(regexp_replace(
                     regexp_replace(coalesce(lat_name,''), '[^\\p{{L}}\\p{{M}}\\p{{N}}\\s]',' ','g'),
-                    '\\s+',' ','g')))) AS norm_name,
+                    '\\s+',' ','g')))) AS norm_name_raw,
                 strip_accents(lower(trim(regexp_replace(
                     regexp_replace(coalesce(lat_addr,''), '[^\\p{{L}}\\p{{M}}\\p{{N}}\\s]',' ','g'),
                     '\\s+',' ','g')))) AS norm_addr
             FROM raw
+        ),
+        step1_ocr AS (
+            SELECT *,
+                regexp_replace(
+                    regexp_replace(
+                        regexp_replace(norm_name_raw, '\\b[l1]n([b-df-hj-np-tv-z])', 'in\\\\1', 'g'),
+                        '\\b[l1]m([b-df-hj-np-tv-z])', 'im\\\\1', 'g'),
+                    '\\bprriraet\\b', 'private', 'g'
+                ) AS norm_name
+            FROM step1
         ),
         step2 AS (
             SELECT *,
@@ -166,17 +192,34 @@ def normalize_table(con, out_table, source, country=None, do_translit=False):
                         regexp_replace(norm_name,
                             '(\\bwww\\.|\\.com|\\.in|\\.org|\\.net|\\.co|\\.fr|\\.gov)\\b', ' ', 'g'),
                         '{LEGAL_REGEX}', ' ', 'g'),
-                    '\\s+', ' ', 'g')) AS core_name,
+                    '\\s+', ' ', 'g')) AS core_name_raw,
                 trim(regexp_replace(
                     regexp_replace(norm_addr, '{ADDR_STOP_REGEX}', ' ', 'g'),
                     '\\s+', ' ', 'g')) AS clean_addr
-            FROM step1
+            FROM step1_ocr
+        ),
+        step2_stem AS (
+            SELECT *,
+                trim(regexp_replace(
+                    regexp_replace(
+                        regexp_replace(
+                            regexp_replace(
+                                regexp_replace(
+                                    regexp_replace(core_name_raw,
+                                        '\\bproperties\\b', 'property', 'g'),
+                                    '\\btechnologies\\b', 'technology', 'g'),
+                                '\\bbuilders\\b', 'builder', 'g'),
+                            '\\btraders\\b', 'trader', 'g'),
+                        '\\bfoods\\b', 'food', 'g'),
+                    '\\bconstructions\\b', 'construction', 'g')
+                ) AS core_name
+            FROM step2
         ),
         step3 AS (
             SELECT *,
                 replace(replace(replace(replace(replace(core_name, '0', 'o'), '1', 'l'), '5', 's'), '3', 'e'), '@', 'a') AS unleet_core,
                 regexp_extract_all(norm_addr, '[0-9]+') AS raw_nums
-            FROM step2
+            FROM step2_stem
         )
         SELECT
             entity_id, country, business_name, business_address,
@@ -210,8 +253,7 @@ def normalize_table(con, out_table, source, country=None, do_translit=False):
                  ELSE '' END AS first_street_word,
             list_filter(string_split(core_name, ' '), x -> length(x) >= 2) AS core_tokens,
             list_filter(string_split(norm_addr, ' '), x -> length(x) >= 3) AS addr_tokens,
-            -- alpha_addr_tokens: only letters (len>=3), for city/state overlap (not street numbers)
-            list_filter(string_split(norm_addr, ' '), x -> length(x) >= 3 AND regexp_matches(x, '^[a-z]+$')) AS alpha_addr_tokens,
+            list_filter(string_split(clean_addr, ' '), x -> length(x) >= 3 AND regexp_matches(x, '^[a-z]+$')) AS alpha_addr_tokens,
             CASE WHEN coalesce(trim(business_address), '') != '' THEN 1 ELSE 0 END AS has_addr
         FROM step3
     """)
@@ -220,14 +262,11 @@ def normalize_table(con, out_table, source, country=None, do_translit=False):
     gc.collect()
 
 
-def block_candidates(con, s_table, t_table, out_table, max_freq=20):
+def block_candidates(con, s_table, t_table, out_table, max_freq=25):
     """
-    v7: Tighter max_freq (20 down from 35) to reduce FP candidate pairs.
-    Added 'rare_token' blocking: matches on the single rarest (lowest IDF) core token
-    that appears in <= 5 entities in the target, giving precision-first matching.
+    v8: Word-boundary normalization, multi-channel blocking with rare token & rare address channels.
     """
     con.execute(f"""
-        -- Core name exact channels (most precise)
         CREATE OR REPLACE TEMP TABLE _freq_nn AS
         SELECT country, norm_name, count(*) AS cnt FROM {t_table} WHERE norm_name != '' GROUP BY country, norm_name HAVING count(*) <= {max_freq};
         
@@ -246,7 +285,11 @@ def block_candidates(con, s_table, t_table, out_table, max_freq=20):
         CREATE OR REPLACE TEMP TABLE _freq_usp AS
         SELECT country, unleet_spaceless, count(*) AS cnt FROM {t_table} WHERE length(unleet_spaceless) >= 5 GROUP BY country, unleet_spaceless HAVING count(*) <= {max_freq};
         
-        -- Address channels (high precision)
+        -- First 2 tokens channel (matches Duran Brown Center vs Duran & Brown)
+        CREATE OR REPLACE TEMP TABLE _freq_f2 AS
+        SELECT country, first_2_tokens, count(*) AS cnt FROM {t_table} WHERE length(first_2_tokens) >= 7 GROUP BY country, first_2_tokens HAVING count(*) <= 20;
+
+        -- Address channels
         CREATE OR REPLACE TEMP TABLE _freq_sa AS
         SELECT country, sorted_addr, count(*) AS cnt FROM {t_table} WHERE length(sorted_addr) >= 10 GROUP BY country, sorted_addr HAVING count(*) <= 15;
         
@@ -255,8 +298,12 @@ def block_candidates(con, s_table, t_table, out_table, max_freq=20):
         
         CREATE OR REPLACE TEMP TABLE _freq_np AS
         SELECT country, first_num, postal_code, count(*) AS cnt FROM {t_table} WHERE first_num != '' AND postal_code != '' GROUP BY country, first_num, postal_code HAVING count(*) <= 15;
-        
-        -- Rare token blocking: tokens appearing <= 5 times in BOTH source and target
+
+        -- First token + postal code channel
+        CREATE OR REPLACE TEMP TABLE _freq_ftp AS
+        SELECT country, first_token, postal_code, count(*) AS cnt FROM {t_table} WHERE length(first_token) >= 4 AND postal_code != '' GROUP BY country, first_token, postal_code HAVING count(*) <= 15;
+
+        -- Rare token blocking (core name)
         CREATE OR REPLACE TEMP TABLE _s_toks_raw AS
         SELECT entity_id, country, unnest(core_tokens) AS tok FROM {s_table};
         
@@ -274,7 +321,6 @@ def block_candidates(con, s_table, t_table, out_table, max_freq=20):
         INTERSECT
         SELECT country, tok FROM _t_rare_cnt;
         
-        -- Filter source and target to only rare tokens
         CREATE OR REPLACE TEMP TABLE _s_rare_toks AS
         SELECT s.entity_id, s.country, s.tok
         FROM _s_toks_raw s
@@ -285,66 +331,101 @@ def block_candidates(con, s_table, t_table, out_table, max_freq=20):
         FROM _t_toks_raw t
         JOIN _rare_toks r ON t.country = r.country AND t.tok = r.tok;
 
+        -- Rare address token blocking (locality / street / city word occurring <= 3 times)
+        CREATE OR REPLACE TEMP TABLE _s_atok_raw AS
+        SELECT entity_id, country, unnest(alpha_addr_tokens) AS atok FROM {s_table};
+
+        CREATE OR REPLACE TEMP TABLE _t_atok_raw AS
+        SELECT entity_id, country, unnest(alpha_addr_tokens) AS atok FROM {t_table};
+
+        CREATE OR REPLACE TEMP TABLE _s_rare_acnt AS
+        SELECT country, atok FROM _s_atok_raw WHERE length(atok) >= 6 GROUP BY country, atok HAVING count(*) <= 3;
+
+        CREATE OR REPLACE TEMP TABLE _t_rare_acnt AS
+        SELECT country, atok FROM _t_atok_raw WHERE length(atok) >= 6 GROUP BY country, atok HAVING count(*) <= 3;
+
+        CREATE OR REPLACE TEMP TABLE _rare_atoks AS
+        SELECT country, atok FROM _s_rare_acnt
+        INTERSECT
+        SELECT country, atok FROM _t_rare_acnt;
+
+        CREATE OR REPLACE TEMP TABLE _s_rare_atoks AS
+        SELECT s.entity_id, s.country, s.atok
+        FROM _s_atok_raw s
+        JOIN _rare_atoks r ON s.country = r.country AND s.atok = r.atok;
+
+        CREATE OR REPLACE TEMP TABLE _t_rare_atoks AS
+        SELECT t.entity_id, t.country, t.atok
+        FROM _t_atok_raw t
+        JOIN _rare_atoks r ON t.country = r.country AND t.atok = r.atok;
+
         CREATE OR REPLACE TABLE {out_table} AS
         SELECT DISTINCT source1_entity_id, matched_entity_id FROM (
-            -- norm_name exact
             SELECT s.entity_id AS source1_entity_id, t.entity_id AS matched_entity_id
             FROM {s_table} s JOIN _freq_nn f ON s.country = f.country AND s.norm_name = f.norm_name JOIN {t_table} t ON t.country = f.country AND t.norm_name = f.norm_name
             
             UNION ALL
-            -- core_name exact  
             SELECT s.entity_id, t.entity_id
             FROM {s_table} s JOIN _freq_cn f ON s.country = f.country AND s.core_name = f.core_name JOIN {t_table} t ON t.country = f.country AND t.core_name = f.core_name
             
             UNION ALL
-            -- sorted_core
             SELECT s.entity_id, t.entity_id
             FROM {s_table} s JOIN _freq_sc f ON s.country = f.country AND s.sorted_core = f.sorted_core JOIN {t_table} t ON t.country = f.country AND t.sorted_core = f.sorted_core
             
             UNION ALL
-            -- spaceless_core
             SELECT s.entity_id, t.entity_id
             FROM {s_table} s JOIN _freq_sp f ON s.country = f.country AND s.spaceless_core = f.spaceless_core JOIN {t_table} t ON t.country = f.country AND t.spaceless_core = f.spaceless_core
             
             UNION ALL
-            -- unleet_sorted
             SELECT s.entity_id, t.entity_id
             FROM {s_table} s JOIN _freq_usc f ON s.country = f.country AND s.unleet_sorted = f.unleet_sorted JOIN {t_table} t ON t.country = f.country AND t.unleet_sorted = f.unleet_sorted
             
             UNION ALL
-            -- unleet_spaceless
             SELECT s.entity_id, t.entity_id
             FROM {s_table} s JOIN _freq_usp f ON s.country = f.country AND s.unleet_spaceless = f.unleet_spaceless JOIN {t_table} t ON t.country = f.country AND t.unleet_spaceless = f.unleet_spaceless
+
+            UNION ALL
+            SELECT s.entity_id, t.entity_id
+            FROM {s_table} s JOIN _freq_f2 f ON s.country = f.country AND s.first_2_tokens = f.first_2_tokens JOIN {t_table} t ON t.country = f.country AND t.first_2_tokens = f.first_2_tokens
             
             UNION ALL
-            -- sorted_addr (high-precision address)
             SELECT s.entity_id, t.entity_id
             FROM {s_table} s JOIN _freq_sa f ON s.country = f.country AND s.sorted_addr = f.sorted_addr JOIN {t_table} t ON t.country = f.country AND t.sorted_addr = f.sorted_addr
             
             UNION ALL
-            -- num+street
             SELECT s.entity_id, t.entity_id
             FROM {s_table} s JOIN _freq_nw f ON s.country = f.country AND s.first_num = f.first_num AND s.first_street_word = f.first_street_word JOIN {t_table} t ON t.country = f.country AND t.first_num = f.first_num AND t.first_street_word = f.first_street_word
             
             UNION ALL
-            -- num+postal
             SELECT s.entity_id, t.entity_id
             FROM {s_table} s JOIN _freq_np f ON s.country = f.country AND s.first_num = f.first_num AND s.postal_code = f.postal_code JOIN {t_table} t ON t.country = f.country AND t.first_num = f.first_num AND t.postal_code = f.postal_code
+
+            UNION ALL
+            SELECT s.entity_id, t.entity_id
+            FROM {s_table} s JOIN _freq_ftp f ON s.country = f.country AND s.first_token = f.first_token AND s.postal_code = f.postal_code JOIN {t_table} t ON t.country = f.country AND t.first_token = f.first_token AND t.postal_code = f.postal_code
             
             UNION ALL
-            -- rare token blocking (two-hop indexed join on unnested tokens)
             SELECT sr.entity_id AS source1_entity_id, tr.entity_id AS matched_entity_id
             FROM _s_rare_toks sr
             JOIN _t_rare_toks tr ON sr.country = tr.country AND sr.tok = tr.tok
+
+            UNION ALL
+            SELECT sa.entity_id AS source1_entity_id, ta.entity_id AS matched_entity_id
+            FROM _s_rare_atoks sa
+            JOIN _t_rare_atoks ta ON sa.country = ta.country AND sa.atok = ta.atok
         )
     """)
     con.execute("""
         DROP TABLE IF EXISTS _freq_nn; DROP TABLE IF EXISTS _freq_cn; DROP TABLE IF EXISTS _freq_sc;
         DROP TABLE IF EXISTS _freq_sp; DROP TABLE IF EXISTS _freq_usc; DROP TABLE IF EXISTS _freq_usp;
-        DROP TABLE IF EXISTS _freq_sa; DROP TABLE IF EXISTS _freq_nw; DROP TABLE IF EXISTS _freq_np;
+        DROP TABLE IF EXISTS _freq_f2; DROP TABLE IF EXISTS _freq_sa; DROP TABLE IF EXISTS _freq_nw;
+        DROP TABLE IF EXISTS _freq_np; DROP TABLE IF EXISTS _freq_ftp;
         DROP TABLE IF EXISTS _s_toks_raw; DROP TABLE IF EXISTS _t_toks_raw;
         DROP TABLE IF EXISTS _rare_toks; DROP TABLE IF EXISTS _s_rare_toks; DROP TABLE IF EXISTS _t_rare_toks;
         DROP TABLE IF EXISTS _s_rare_cnt; DROP TABLE IF EXISTS _t_rare_cnt;
+        DROP TABLE IF EXISTS _s_atok_raw; DROP TABLE IF EXISTS _t_atok_raw;
+        DROP TABLE IF EXISTS _rare_atoks; DROP TABLE IF EXISTS _s_rare_atoks; DROP TABLE IF EXISTS _t_rare_atoks;
+        DROP TABLE IF EXISTS _s_rare_acnt; DROP TABLE IF EXISTS _t_rare_acnt;
     """)
 
 
